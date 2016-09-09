@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+    <head>
+        <meta charset="utf-8">
+        <title>Plot {{ id }}</title>
+
+        <link rel="stylesheet" href="/resources/{{ theme }}.css" type="text/css" />
+        <script   src="https://code.jquery.com/jquery-3.1.0.slim.min.js"   
+            integrity="sha256-cRpWjoSOw5KcyIOaZNo4i6fZ9tKPhYYb6i5T9RSVJG8="   crossorigin="anonymous"></script>
+
+        <script>
+
+
+
+//            // REGISTER LOADING WINDOW FUNCTIONS
+//            $body = $("body");
+//
+//            function check_loaded() {
+//
+//                var loaded = $('.bk-ui-slider')[0].id;
+//                console.log("CHECKING" + window.prev_loaded_flag + '   ' + loaded);
+//
+//                if (loaded!=window.prev_loaded_flag){
+//                    console.log('closing');
+//                    $("body").removeClass("loading");
+//                    window.prev_loaded_flag = loaded;
+//
+//                }else{
+//                    setTimeout(check_loaded, 1000);
+//                }
+//            }
+//
+//
+//            function get_source_by_tag(sourcetag){
+//                var sources = Bokeh.Collections('ColumnDataSource').models;
+//
+//                for (var i=0; i<sources.length; i++){
+//                    var tag = sources[i].get('tags')[0];
+//                    if (tag == sourcetag){
+//                        return sources[i]
+//                    }
+//                }
+//            }
+//
+//            function disableSource(source){
+//                // save the original data so we can restore it when enabling the source again
+//                if (source.get('odata') == undefined){
+//                    source.set('odata', source.get('data'));
+//                }
+//                source.set('data', {});
+//            }
+//
+//            function enableSource(source){
+//                // save the original data so we can restore it when enabling the source again
+//                if (source.get('odata') == undefined){
+//                    source.set('odata', source.get('data'));
+//                }
+//                source.set('data', source.get('odata'));
+//            }
+        </script>
+
+
+    {{ js_resources|indent(4)|safe }}
+
+    {{ css_resources|indent(4)|safe }}
+
+    {{ plot_script|indent(4)|safe }}
+
+
+    </head>
+    <body>
+        <header class="dashboardHeader">
+        </header>
+
+        <div class="dashboardBody">
+            <div id="plot_wrapper">
+                {{ extra_divs.main_plot|indent(4)|safe }}
+            </div>
+        </div>
+            <div id="side_bar">
+                <div id="plugins_wrapper">
+                    <h1>AAPL</h1>
+                    <div id="details_panel">
+                        <h1>Intro</h1>
+                        <p>
+                            This example shows a simple interactive application that performs
+                            realtime downsampling over <b>simulated</b> stocks prices over
+                            period of 15 years using bokeh AjaxDataSource anda simple flask server.
+                        </p>
+                        <h1>Instructions</h1>
+                        <p>
+                            Use the smaller plot on the top to select regions of data over the
+                            entire time period.
+                            After a period of time is selected the main plot below will update its
+                            ranges to the selected period and data will be resampled to increase
+                            data resolution accordingly to the selection.
+                            To restore the initial ranges simply press 'ESC'.
+                        </p>
+                        <h1>Changing theme</h1>
+                        <p>
+                            It's also possible to change theme using the combobox at the bottom
+                            of the page.
+                        </p>
+                    </div>
+                </div>
+            </div>
+    </body>
+</html>
