@@ -155,6 +155,7 @@ def data_page_exists(user_id, data_id):
 def get_data_page(user_id, data_id, create_if_missing=False):
     store = get_user_store(user_id)
     if data_id not in store:
+        store.close()
         error(404, "unknown data_id {}".format(data_id))
      
     d = store[data_id]
