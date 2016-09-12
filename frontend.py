@@ -15,6 +15,7 @@ import time
 import requests
 import sstsp
 
+
 def style_axis(plot, theme):
     plot.axis.minor_tick_in=None
     plot.axis.minor_tick_out=None
@@ -82,6 +83,7 @@ def create_main_plot(theme, source):
     p = figure(x_axis_type = "datetime", tools="pan,xwheel_zoom,ywheel_zoom,box_zoom,reset,hover,previewsave",
                height=500, toolbar_location='right', active_scroll='xwheel_zoom')
     p.line('index', 'data', color='#A6CEE3', source=source)
+    p.circle('index', 'data', color='#A6CEE3', source=source, size=2)
     style_main_plot(p, theme)
 
     hover = p.select(dict(type=HoverTool))
@@ -209,12 +211,19 @@ def create_selection_plot(main_plot, theme):
 
 
 # Create the flask app to serve the customized panel
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, abort
 from bokeh.embed import components
 from bokeh.resources import Resources
 from bokeh.templates import JS_RESOURCES, CSS_RESOURCES
 
 app = Flask('sstsp')
+
+def error(code, msg=""):
+    log.info("{} error - {}".format(code, msg))
+    raise abort(code)
+
+def internal_error(msg=""):
+    error(500, msg)
 
 @app.route("/p/<user_id>/<data_id>")
 def newapplet(user_id, data_id):
@@ -238,6 +247,10 @@ def newapplet(user_id, data_id):
     # Get the data for the entire time period (so that we can use on th upper plot)
     #url = "http://127.0.0.1:5000/alldata"
     res = requests.get(data_url, timeout=5)
+
+    if res.status_code != requests.codes.ok:
+        error(res.status_code, "Unable to get data at {} for plot".format(data_url))
+
     data = res.json()
     name = data.pop('name')
     data['DateFmt'] = [time.ctime(t) for t in data['index']]
