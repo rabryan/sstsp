@@ -1,0 +1,2 @@
+USER_ID_LEN = 16
+DEFAULT_FREQ = '1s'

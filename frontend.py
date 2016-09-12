@@ -9,7 +9,11 @@ from blaze.server.client import Client
 from blaze import Data
 from bokeh.models.callbacks import CustomJS
 
+import logging as log
+
+import time
 import requests
+import sstsp
 
 def style_axis(plot, theme):
     plot.axis.minor_tick_in=None
@@ -73,26 +77,18 @@ def style_main_plot(p, theme='default'):
         p.grid.grid_line_color = "#4D4D4D"
 
 
-source = AjaxDataSource(data_url='http://localhost:5000/data', polling_interval=1000)
 
-# Get the data for the entire time period (so that we can use on th upper plot)
-url = "http://127.0.0.1:5000/alldata"
-res = requests.get(url, timeout=20)
-data = res.json()
-
-def create_main_plot(theme):
-    p = figure(x_axis_type = "datetime", tools="pan,wheel_zoom,box_zoom,reset,hover,previewsave",
-               height=500, toolbar_location='right')
-    source.data = data
-    p.line('Date', 'Value', color='#A6CEE3', source=source)
+def create_main_plot(theme, source):
+    p = figure(x_axis_type = "datetime", tools="pan,xwheel_zoom,ywheel_zoom,box_zoom,reset,hover,previewsave",
+               height=500, toolbar_location='right', active_scroll='xwheel_zoom')
+    p.line('index', 'data', color='#A6CEE3', source=source)
     style_main_plot(p, theme)
 
     hover = p.select(dict(type=HoverTool))
     hover.mode='vline'
     hover.tooltips = OrderedDict([
-     ("Date", "@Date"),
-     ("Value", "$ @Value"),
      ("Date", "@DateFmt"),
+     ("Value", "@data"),
     ])
     return p
 
@@ -116,8 +112,8 @@ def create_selection_plot(main_plot, theme):
     selection_plot.quad(top='values', bottom='bottom', left='start', right='end',
           source=selection_source, color=selection_color, fill_alpha=0.5)
 
-    selection_plot.line('Date', 'Price', color='#A6CEE3', source=static_source)
-    selection_plot.circle('Date', 'Price', color='#A6CEE3', source=static_source, size=1)
+    selection_plot.line('index', 'data', color='#A6CEE3', source=static_source)
+    selection_plot.circle('index', 'data', color='#A6CEE3', source=static_source, size=1)
 
     style_selection_plot(selection_plot, theme)
 
@@ -218,25 +214,36 @@ from bokeh.embed import components
 from bokeh.resources import Resources
 from bokeh.templates import JS_RESOURCES, CSS_RESOURCES
 
-application = Flask('sstsp')
+app = Flask('sstsp')
 
-@application.route("/")
-def newapplet():
+@app.route("/p/<user_id>/<data_id>")
+def newapplet(user_id, data_id):
     theme = request.args.get('theme', 'default')
-    INLINE = Resources(mode="inline", minified=False,)
+    CDN = Resources(mode="cdn", minified=True,)
     templname = "plot.html"
 
     js_resources = JS_RESOURCES.render(
-        js_raw=INLINE.js_raw,
-        js_files=INLINE.js_files
+        js_raw=CDN.js_raw,
+        js_files=CDN.js_files
     )
 
     css_resources = CSS_RESOURCES.render(
-        css_raw=INLINE.css_raw,
-        css_files=INLINE.css_files
+        css_raw=CDN.css_raw,
+        css_files=CDN.css_files
     )
+    
+    data_url = "http://localhost:5000/d/{}/{}".format(user_id, data_id)
+    #source = AjaxDataSource(data_url=data_url, polling_interval=1000)
 
-    p = create_main_plot(theme)
+    # Get the data for the entire time period (so that we can use on th upper plot)
+    #url = "http://127.0.0.1:5000/alldata"
+    res = requests.get(data_url, timeout=5)
+    data = res.json()
+    name = data.pop('name')
+    data['DateFmt'] = [time.ctime(t) for t in data['index']]
+    source = ColumnDataSource(data)
+    log.debug(source)
+    p = create_main_plot(theme, source)
     plot_script, extra_divs = components(
         {
             "main_plot": p,
@@ -263,5 +270,6 @@ gen_config = dict(
 )
 if __name__ == "__main__":
     print("\nView this example at: %s\n" % gen_config['applet_url'])
-    application.debug = gen_config['debug']
-    application.run(host=gen_config['host'], port=gen_config['port'])
+    log.basicConfig(level=log.DEBUG)
+    app.debug = gen_config['debug']
+    app.run(host=gen_config['host'], port=gen_config['port'])

@@ -17,10 +17,10 @@ import time
 import hashlib
 import uuid
 
+import sstsp
+
 fromtimestamp = dt.datetime.fromtimestamp
 
-USER_ID_LEN = 16
-DEFAULT_FREQ = '1s'
 app = Flask(__name__)
 
 
@@ -63,7 +63,7 @@ ftss = [fromtimestamp(x//1000).strftime("%Y-%m-%d %H:%M:%S") for x in tss]
 curr_ds = dict(
     Date=[x for x in tss],
     DateFmt=[ts for ts in ftss],
-    Price=[float(x) for x in resampled],
+    Value=[float(x) for x in resampled],
 )
 
 details = {
@@ -92,15 +92,15 @@ def subsample(start, end):
     factor = len(xs) // FACTOR_BASE
     if factor <= 1:
         tss = xs.Date
-        resampled = xs.Price
+        resampled = xs.Value
     else:
-        resampled = coarsen(np.mean, np.asarray(xs.Price), factor)
+        resampled = coarsen(np.mean, np.asarray(xs.Value), factor)
         tss = coarsen(np.min, np.asarray(xs.Date), factor)
     
     print(len(resampled))
     curr_ds = dict(
         Date=[x for x in tss],
-        Price=[float(x) for x in resampled],
+        Value=[float(x) for x in resampled],
         DateFmt=[fromtimestamp(x//1000) for x in tss],
     )
     details = {
@@ -158,10 +158,10 @@ def get_data_page(user_id, data_id, create_if_missing=False):
         error(404, "unknown data_id {}".format(data_id))
      
     d = store[data_id]
-    
+    store.close() 
     return d
 
-def create_data_page(user_id, data_id, freq=DEFAULT_FREQ, start_time = None, start_val = None):
+def create_data_page(user_id, data_id, freq=sstsp.DEFAULT_FREQ, start_time = None, start_val = None):
     if user_store_exists(user_id):
         store = get_user_store(user_id, 'r+')
     else:
@@ -174,6 +174,7 @@ def create_data_page(user_id, data_id, freq=DEFAULT_FREQ, start_time = None, sta
     
     idx = pd.to_datetime(start_time, unit='s')
     s = pd.Series(data=[start_val], index=[idx])
+    s.name = data_id
     
     store[data_id] = s
     log.debug("created dataframe {} freq={} start={} val={} for user {}".format(data_id, 
@@ -189,6 +190,7 @@ def append_data(user_id, data_id, t, val):
     d = store[data_id]
     idx = pd.to_datetime(t, unit='s')
     new_s = pd.Series(data=[val], index=[idx])
+    new_s.name = data_id
 
     store[data_id] = d.append(new_s)
     store.close()
@@ -204,12 +206,12 @@ def custom_401(error):
 
 @app.route('/d/<user_id>/<data_id>', methods=['GET', 'POST'])
 def data(user_id, data_id):
-    if len(user_id) != USER_ID_LEN:
-        abort(400, "invalid user id - expecting {} char string".format(USER_ID_LEN))
+    if len(user_id) != sstsp.USER_ID_LEN:
+        abort(400, "invalid user id - expecting {} char string".format(sstsp.USER_ID_LEN))
 
     if request.method == 'GET':
         d = get_data_page(user_id, data_id)
-        return d.to_json()
+        return d.to_json(orient='split')
     elif request.method == 'POST':
         if 'v' not in request.form:
             error(400, "data post missing required value field 'v'")
@@ -221,7 +223,7 @@ def data(user_id, data_id):
         except ValueError:
             error(400, "badly formed hexadecimal UUID string") 
             
-        hash_id = hashlib.sha256(key_uid.bytes).hexdigest()[:USER_ID_LEN]
+        hash_id = hashlib.sha256(key_uid.bytes).hexdigest()[:sstsp.USER_ID_LEN]
 
         if hash_id != user_id:
             error(401, "API key hash does not match user_id")
