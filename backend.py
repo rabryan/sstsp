@@ -7,6 +7,7 @@ import datetime as dt
 
 import flask
 from flask import Flask, json, Response, request
+from flask_cors import CORS, cross_origin
 import h5py
 import numpy as np
 import pandas as pd
@@ -22,7 +23,7 @@ import sstsp
 fromtimestamp = dt.datetime.fromtimestamp
 
 app = Flask(__name__)
-
+CORS(app)
 
 def to_seconds(ts):
     if isinstance(ts, dt.datetime):
@@ -162,6 +163,9 @@ def get_data_page(user_id, data_id, create_if_missing=False):
     store.close() 
     return d
 
+def get_data_page_latest(user_id, data_id):
+    return get_data_page(user_id, data_id).tail()
+
 def create_data_page(user_id, data_id, freq=sstsp.DEFAULT_FREQ, start_time = None, start_val = None):
     if user_store_exists(user_id):
         store = get_user_store(user_id, 'r+')
@@ -205,20 +209,81 @@ def get_user_page(user_id):
 def custom_401(error):
     return Response('Valid API key required to update data', 401, {'WWWAuthenticate':'Basic realm="Valid API Key required"'})
 
-@app.route('/d/<user_id>/<data_id>', methods=['GET', 'POST'])
-def data(user_id, data_id):
+@app.route('/d/<user_id>/<data_id>/latest', methods=['GET', 'PUT'])
+def latest_data(user_id, data_id):
     if len(user_id) != sstsp.USER_ID_LEN:
         abort(400, "invalid user id - expecting {} char string".format(sstsp.USER_ID_LEN))
 
-    if request.method == 'GET':
-        d = get_data_page(user_id, data_id)
+    if request.method == 'GET':# or request.method == 'POST':
+        start = time.time()
+        d = get_data_page_latest(user_id, data_id)
+        log.debug("data page retrieve took {} ms".format(1000*(time.time() - start)))
         return d.to_json(orient='split')
-    elif request.method == 'POST':
+    elif request.method == 'PUT':
         if 'v' not in request.form:
             error(400, "data post missing required value field 'v'")
 
         key = request.form.get('key', None)
-        log.debug("Received POST to {}/{} form:{}".format(user_id, data_id, request.form))
+        log.debug("Received PUT to {}/{} form:{}".format(user_id, data_id, request.form))
+        try:
+            key_uid = uuid.UUID(key)
+        except ValueError:
+            error(400, "badly formed hexadecimal UUID string") 
+            
+        hash_id = hashlib.sha256(key_uid.bytes).hexdigest()[:sstsp.USER_ID_LEN]
+
+        if hash_id != user_id:
+            error(401, "API key hash does not match user_id")
+       
+
+        v_str = request.form['v']
+        try: 
+            v = float(v_str)
+        except ValueError:
+            error(400, "expecting float for value - got {}".format(v_str))
+        
+        if "t" not in request.form:
+            t = time.time()
+        else:
+            t_str = request.form['t']
+            try:
+                t = float(t_str)
+            except ValueError:
+                error(400, "expecting float or int for time - got {}".format(t_str))
+
+        freq = request.form.get("f", "1s")
+        log.debug("valid api key.  storing ({},{})".format(t,v))
+        
+        if not user_store_exists(user_id):
+            log.debug("creating data store for new user {}".format(user_id))
+            store = create_user_store(user_id)
+            store.close()
+
+        if not data_page_exists(user_id, data_id):
+            log.debug("creating new data series '{}'".format(data_id))
+            create_data_page(user_id, data_id, freq, t, v)
+        else:
+            append_data(user_id, data_id, t, v)
+        
+        return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+
+@app.route('/d/<user_id>/<data_id>', methods=['GET', 'PUT'])
+def data(user_id, data_id):
+    if len(user_id) != sstsp.USER_ID_LEN:
+        abort(400, "invalid user id - expecting {} char string".format(sstsp.USER_ID_LEN))
+
+    if request.method == 'GET':# or request.method == 'POST':
+        start = time.time()
+        d = get_data_page(user_id, data_id)
+        log.debug("data page retrieve took {} ms".format(1000*(time.time() - start)))
+        return d.to_json(orient='split')
+    elif request.method == 'PUT':
+        #FIXME -- this should allow post of more than 1 data point
+        if 'v' not in request.form:
+            error(400, "data post missing required value field 'v'")
+
+        key = request.form.get('key', None)
+        log.debug("Received PUT to {}/{} form:{}".format(user_id, data_id, request.form))
         try:
             key_uid = uuid.UUID(key)
         except ValueError:

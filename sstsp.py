@@ -9,8 +9,8 @@ USER_ID="73cee64511fbc598"
 
 def send_data(datum, timestamp, value):
     params = {'v':str(value), 'key':KEY, 't':str(timestamp)}
-    url = URL_BASE + "/d/" + USER_ID + "/" + str(datum)
-    r = requests.post(url, data=params)
+    url = URL_BASE + "/d/" + USER_ID + "/" + str(datum) + "/latest"
+    r = requests.put(url, data=params)
 
     if r.status_code != requests.codes.ok:
         pass #FIXME

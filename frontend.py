@@ -83,8 +83,8 @@ def create_main_plot(theme, source):
     p = figure(x_axis_type = "datetime", tools="pan,xwheel_zoom,ywheel_zoom,box_zoom,reset,previewsave",
                height=500, toolbar_location='right', active_scroll='xwheel_zoom',
                responsive=True)
-    p.line('DateTZ', 'data', color='#A6CEE3', source=source)
-    p.circle('DateTZ', 'data', color='#A6CEE3', source=source, size=2)
+    p.line('index', 'data', color='#A6CEE3', source=source)
+    p.circle('index', 'data', color='#A6CEE3', source=source, size=2)
     style_main_plot(p, theme)
 
 #    hover = p.select(dict(type=HoverTool))
@@ -243,11 +243,9 @@ def tz_offset_seconds(tz_str):
     return delta.total_seconds()
 
 def get_data_source(user_id, data_id, tz_str=None):
-    data_url = "http://localhost:5000/d/{}/{}".format(user_id, data_id)
+    data_url = "http://127.0.0.1:5000/d/{}/{}".format(user_id, data_id)
     #source = AjaxDataSource(data_url=data_url, polling_interval=1000)
 
-    # Get the data for the entire time period (so that we can use on th upper plot)
-    #url = "http://127.0.0.1:5000/alldata"
     res = requests.get(data_url, timeout=5)
 
     if res.status_code != requests.codes.ok:
@@ -266,8 +264,34 @@ def get_data_source(user_id, data_id, tz_str=None):
     
     #data['DateFmt'] = [time.ctime(t) for t in data['index']]
 
-    source = ColumnDataSource(data)
+    #source = ColumnDataSource(data)
+    
+    source =  AjaxDataSource(data, data_url=data_url, 
+            polling_interval=1000, method='GET', max_size=10000,
+            mode='append')
+
+    def on_latest_change(attr, old, new):
+        log.info('on_latest_change {}  old={} new={}'.format(attr, old, new))
+
+    source.on_change('data', on_latest_change)
+    data['DateTZ'] = data['index']
+
     return source
+
+    
+
+def get_ajax_latest_source(user_id, data_id):
+    data_url = "http://127.0.0.1:5000/d/{}/{}".format(user_id, data_id)
+    latest_url = data_url + "/latest"
+    latest_src =  AjaxDataSource(dict(index=[], data=[]), data_url=latest_url, 
+            polling_interval=5000, method='GET')
+
+    def on_latest_change(attr, old, new):
+        print('on_latest_change {}  old={} new={}'.format(attr, old, new))
+
+    latest_src.on_change('data', on_latest_change)
+
+    return latest_src
 
 @app.route("/p/<user_id>/<data_id>")
 def newapplet(user_id, data_id):
@@ -287,12 +311,14 @@ def newapplet(user_id, data_id):
     
     tz = request.args.get("tz", None)
     source = get_data_source(user_id, data_id, tz)
+    #ajax_source = get_ajax_latest_source(user_id, data_id)
     p = create_main_plot(theme, source)
     plot_script, extra_divs = components(
         {
             "main_plot": p,
         }
     )
+    
     themes = ["default", "dark"]
     options = { k: 'selected="selected"' if theme == k else "" for k in themes}
 
