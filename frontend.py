@@ -81,7 +81,8 @@ def style_main_plot(p, theme='default'):
 
 def create_main_plot(theme, source):
     p = figure(x_axis_type = "datetime", tools="pan,xwheel_zoom,ywheel_zoom,box_zoom,reset,previewsave",
-               height=500, toolbar_location='right', active_scroll='xwheel_zoom')
+               height=500, toolbar_location='right', active_scroll='xwheel_zoom',
+               responsive=True)
     p.line('DateTZ', 'data', color='#A6CEE3', source=source)
     p.circle('DateTZ', 'data', color='#A6CEE3', source=source, size=2)
     style_main_plot(p, theme)
