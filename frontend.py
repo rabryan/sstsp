@@ -11,7 +11,7 @@ from bokeh.models.callbacks import CustomJS
 
 import logging as log
 
-import time
+import time, datetime
 import requests
 import sstsp
 
@@ -80,18 +80,18 @@ def style_main_plot(p, theme='default'):
 
 
 def create_main_plot(theme, source):
-    p = figure(x_axis_type = "datetime", tools="pan,xwheel_zoom,ywheel_zoom,box_zoom,reset,hover,previewsave",
+    p = figure(x_axis_type = "datetime", tools="pan,xwheel_zoom,ywheel_zoom,box_zoom,reset,previewsave",
                height=500, toolbar_location='right', active_scroll='xwheel_zoom')
-    p.line('index', 'data', color='#A6CEE3', source=source)
-    p.circle('index', 'data', color='#A6CEE3', source=source, size=2)
+    p.line('DateTZ', 'data', color='#A6CEE3', source=source)
+    p.circle('DateTZ', 'data', color='#A6CEE3', source=source, size=2)
     style_main_plot(p, theme)
 
-    hover = p.select(dict(type=HoverTool))
-    hover.mode='vline'
-    hover.tooltips = OrderedDict([
-     ("Date", "@DateFmt"),
-     ("Value", "@data"),
-    ])
+#    hover = p.select(dict(type=HoverTool))
+#    hover.mode='vline'
+#    hover.tooltips = OrderedDict([
+#     ("Date", "@DateFmt"),
+#     ("Value", "@data"),
+#    ])
     return p
 
 def create_selection_plot(main_plot, theme):
@@ -225,6 +225,49 @@ def error(code, msg=""):
 def internal_error(msg=""):
     error(500, msg)
 
+def tz_offset_seconds(tz_str):
+    if tz_str[0] != '-':
+        """ instead of requiring a '+' char which would
+        need to be escaped, just infer it based on presence of 
+        minus sign"""
+        tz_str = "+" + tz_str
+    try:
+        dt = datetime.datetime.strptime(tz_str, "%z" ) 
+    except ValueError as e:
+        log.error("{}".format(e))
+        log.error("invalid tz str {}".format(tz_str))
+        return 0
+    
+    delta = dt.utcoffset()
+    return delta.total_seconds()
+
+def get_data_source(user_id, data_id, tz_str=None):
+    data_url = "http://localhost:5000/d/{}/{}".format(user_id, data_id)
+    #source = AjaxDataSource(data_url=data_url, polling_interval=1000)
+
+    # Get the data for the entire time period (so that we can use on th upper plot)
+    #url = "http://127.0.0.1:5000/alldata"
+    res = requests.get(data_url, timeout=5)
+
+    if res.status_code != requests.codes.ok:
+        error(res.status_code, "Unable to get data at {} for plot".format(data_url))
+
+    data = res.json()
+    name = data.pop('name')
+    
+    if tz_str is not None:
+        offset_ms = 1000*tz_offset_seconds(tz_str)
+        log.debug("offseting date with {} seconds for  {}".format(offset_ms/1000, tz_str))
+        data['DateTZ'] = [t + offset_ms for t in data['index']]
+    else:
+        log.debug("no utc tz provided")
+        data['DateTZ'] = data['index']
+    
+    #data['DateFmt'] = [time.ctime(t) for t in data['index']]
+
+    source = ColumnDataSource(data)
+    return source
+
 @app.route("/p/<user_id>/<data_id>")
 def newapplet(user_id, data_id):
     theme = request.args.get('theme', 'default')
@@ -241,21 +284,8 @@ def newapplet(user_id, data_id):
         css_files=CDN.css_files
     )
     
-    data_url = "http://localhost:5000/d/{}/{}".format(user_id, data_id)
-    #source = AjaxDataSource(data_url=data_url, polling_interval=1000)
-
-    # Get the data for the entire time period (so that we can use on th upper plot)
-    #url = "http://127.0.0.1:5000/alldata"
-    res = requests.get(data_url, timeout=5)
-
-    if res.status_code != requests.codes.ok:
-        error(res.status_code, "Unable to get data at {} for plot".format(data_url))
-
-    data = res.json()
-    name = data.pop('name')
-    data['DateFmt'] = [time.ctime(t) for t in data['index']]
-    source = ColumnDataSource(data)
-    log.debug(source)
+    tz = request.args.get("tz", None)
+    source = get_data_source(user_id, data_id, tz)
     p = create_main_plot(theme, source)
     plot_script, extra_divs = components(
         {
