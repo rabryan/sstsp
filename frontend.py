@@ -83,8 +83,8 @@ def create_main_plot(theme, source):
     p = figure(x_axis_type = "datetime", tools="pan,xwheel_zoom,ywheel_zoom,box_zoom,reset,previewsave",
                height=500, toolbar_location='right', active_scroll='xwheel_zoom',
                responsive=True)
-    p.line('index', 'data', color='#A6CEE3', source=source)
-    p.circle('index', 'data', color='#A6CEE3', source=source, size=2)
+    p.line('DateTZ', 'data', color='#A6CEE3', source=source)
+    p.circle('DateTZ', 'data', color='#A6CEE3', source=source, size=2)
     style_main_plot(p, theme)
 
 #    hover = p.select(dict(type=HoverTool))
@@ -260,21 +260,25 @@ def get_data_source(user_id, data_id, tz_str=None):
         data['DateTZ'] = [t + offset_ms for t in data['index']]
     else:
         log.debug("no utc tz provided")
+        offset_ms = 0
         data['DateTZ'] = data['index']
     
     #data['DateFmt'] = [time.ctime(t) for t in data['index']]
 
     #source = ColumnDataSource(data)
     
-    source =  AjaxDataSource(data, data_url=data_url, 
+    source =  AjaxDataSource(dict(index=[], data=[], DateTZ=[]), data_url=data_url, 
             polling_interval=1000, method='GET', max_size=10000,
             mode='append')
 
     def on_latest_change(attr, old, new):
+        if offset_ms != 0:
+            data['DateTZ'] = [t + offset_ms for t in data['index']]
+        else:
+            data['DateTZ'] = data['index']
         log.info('on_latest_change {}  old={} new={}'.format(attr, old, new))
 
     source.on_change('data', on_latest_change)
-    data['DateTZ'] = data['index']
 
     return source
 
