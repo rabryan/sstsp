@@ -265,11 +265,11 @@ def get_data_source(user_id, data_id, tz_str=None):
     
     #data['DateFmt'] = [time.ctime(t) for t in data['index']]
 
-    #source = ColumnDataSource(data)
+    source = ColumnDataSource(data)
     
-    source =  AjaxDataSource(dict(index=[], data=[], DateTZ=[]), data_url=data_url, 
-            polling_interval=1000, method='GET', max_size=10000,
-            mode='append')
+    #source =  AjaxDataSource(dict(index=[], data=[], DateTZ=[]), data_url=data_url, 
+    #        polling_interval=1000, method='GET', max_size=10000,
+    #       mode='append')
 
     def on_latest_change(attr, old, new):
         if offset_ms != 0:
