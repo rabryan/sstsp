@@ -10,7 +10,15 @@ def kelvin_to_f(temp_k):
 
 def update():
     obs = owm.weather_at_place("atlanta, ga")
+    if obs is None:
+        log.warn("weather update unavailable")
+        return
+
     w = obs.get_weather()
+
+    if w is None:
+        log.warn("weather update unavailable")
+        return
     
     temp_f = w.get_temperature(TEMP_UNITS)['temp']
     log.info("temperature is {} F".format(temp_f))

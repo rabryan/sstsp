@@ -1,5 +1,3 @@
-# The plot server must be running
-# Go to http://localhost:5006/bokeh to view this plot
 from collections import OrderedDict
 import os.path
 from bokeh.plotting import figure 
@@ -8,10 +6,9 @@ from bokeh.models import BoxSelectTool, HoverTool
 from blaze.server.client import Client
 from blaze import Data
 from bokeh.models.callbacks import CustomJS
-
+import pandas as pd
 import logging as log
 
-import time, datetime
 import requests
 import sstsp
 
@@ -23,7 +20,6 @@ def style_axis(plot, theme):
     plot.axis.major_label_text_font_size="10pt"
     plot.axis.major_label_text_font_style="normal"
     plot.axis.axis_label_text_font_size="10pt"
-
     plot.axis.axis_line_width=1
     plot.axis.major_tick_line_width=1
 
@@ -83,8 +79,8 @@ def create_main_plot(theme, source):
     p = figure(x_axis_type = "datetime", tools="pan,xwheel_zoom,ywheel_zoom,box_zoom,reset,previewsave",
                height=500, toolbar_location='right', active_scroll='xwheel_zoom',
                responsive=True)
-    p.line('DateTZ', 'data', color='#A6CEE3', source=source)
-    p.circle('DateTZ', 'data', color='#A6CEE3', source=source, size=2)
+    p.line('index', 'data', color='#A6CEE3', source=source)
+    p.circle('index', 'data', color='#A6CEE3', source=source, size=2)
     style_main_plot(p, theme)
 
 #    hover = p.select(dict(type=HoverTool))
@@ -213,74 +209,10 @@ def create_selection_plot(main_plot, theme):
 
 # Create the flask app to serve the customized panel
 from flask import Flask, render_template, jsonify, request, abort
-from bokeh.embed import components
-from bokeh.resources import Resources
-from bokeh.templates import JS_RESOURCES, CSS_RESOURCES
 
 app = Flask('sstsp')
 
-def error(code, msg=""):
-    log.info("{} error - {}".format(code, msg))
-    raise abort(code)
 
-def internal_error(msg=""):
-    error(500, msg)
-
-def tz_offset_seconds(tz_str):
-    if tz_str[0] != '-':
-        """ instead of requiring a '+' char which would
-        need to be escaped, just infer it based on presence of 
-        minus sign"""
-        tz_str = "+" + tz_str
-    try:
-        dt = datetime.datetime.strptime(tz_str, "%z" ) 
-    except ValueError as e:
-        log.error("{}".format(e))
-        log.error("invalid tz str {}".format(tz_str))
-        return 0
-    
-    delta = dt.utcoffset()
-    return delta.total_seconds()
-
-def get_data_source(user_id, data_id, tz_str=None):
-    data_url = "http://127.0.0.1:5000/d/{}/{}".format(user_id, data_id)
-    #source = AjaxDataSource(data_url=data_url, polling_interval=1000)
-
-    res = requests.get(data_url, timeout=5)
-
-    if res.status_code != requests.codes.ok:
-        error(res.status_code, "Unable to get data at {} for plot".format(data_url))
-
-    data = res.json()
-    name = data.pop('name')
-    
-    if tz_str is not None:
-        offset_ms = 1000*tz_offset_seconds(tz_str)
-        log.debug("offseting date with {} seconds for  {}".format(offset_ms/1000, tz_str))
-        data['DateTZ'] = [t + offset_ms for t in data['index']]
-    else:
-        log.debug("no utc tz provided")
-        offset_ms = 0
-        data['DateTZ'] = data['index']
-    
-    #data['DateFmt'] = [time.ctime(t) for t in data['index']]
-
-    source = ColumnDataSource(data)
-    
-    #source =  AjaxDataSource(dict(index=[], data=[], DateTZ=[]), data_url=data_url, 
-    #        polling_interval=1000, method='GET', max_size=10000,
-    #       mode='append')
-
-    def on_latest_change(attr, old, new):
-        if offset_ms != 0:
-            data['DateTZ'] = [t + offset_ms for t in data['index']]
-        else:
-            data['DateTZ'] = data['index']
-        log.info('on_latest_change {}  old={} new={}'.format(attr, old, new))
-
-    source.on_change('data', on_latest_change)
-
-    return source
 
     
 
@@ -297,44 +229,6 @@ def get_ajax_latest_source(user_id, data_id):
 
     return latest_src
 
-@app.route("/p/<user_id>/<data_id>")
-def newapplet(user_id, data_id):
-    theme = request.args.get('theme', 'default')
-    CDN = Resources(mode="cdn", minified=True,)
-    templname = "plot.html"
-
-    js_resources = JS_RESOURCES.render(
-        js_raw=CDN.js_raw,
-        js_files=CDN.js_files
-    )
-
-    css_resources = CSS_RESOURCES.render(
-        css_raw=CDN.css_raw,
-        css_files=CDN.css_files
-    )
-    
-    tz = request.args.get("tz", None)
-    source = get_data_source(user_id, data_id, tz)
-    #ajax_source = get_ajax_latest_source(user_id, data_id)
-    p = create_main_plot(theme, source)
-    plot_script, extra_divs = components(
-        {
-            "main_plot": p,
-        }
-    )
-    
-    themes = ["default", "dark"]
-    options = { k: 'selected="selected"' if theme == k else "" for k in themes}
-
-    return render_template(
-        templname,
-        theme = theme,
-        extra_divs = extra_divs,
-        plot_script = plot_script,
-        js_resources=js_resources,
-        css_resources=css_resources,
-        theme_options=options,
-    )
 
 gen_config = dict(
     applet_url="http://127.0.0.1:5050",
