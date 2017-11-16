@@ -13,8 +13,7 @@ import hashlib
 import uuid
 
 from bokeh.embed import components
-from bokeh.resources import Resources
-from bokeh.templates import JS_RESOURCES, CSS_RESOURCES
+from bokeh.resources import Resources, JS_RESOURCES, CSS_RESOURCES
 from bokeh.models.sources import ColumnDataSource, AjaxDataSource
 from util import error, internal_error, tz_offset_seconds
 from user import *

@@ -3,8 +3,6 @@ import os.path
 from bokeh.plotting import figure 
 from bokeh.models.sources import ColumnDataSource, AjaxDataSource
 from bokeh.models import BoxSelectTool, HoverTool
-from blaze.server.client import Client
-from blaze import Data
 from bokeh.models.callbacks import CustomJS
 import pandas as pd
 import logging as log
@@ -47,15 +45,15 @@ def style_selection_plot(selection_plot, theme='default'):
 
 
     if theme == 'default':
-        selection_plot.background_fill = "white"
-        selection_plot.border_fill = "white"
+        selection_plot.background_fill_color = "white"
+        selection_plot.border_fill_color = "white"
         selection_plot.yaxis.major_label_text_color = "white"
         selection_plot.yaxis.minor_tick_line_color="white"
         selection_plot.yaxis.major_tick_line_color=None
 
     elif theme == 'dark':
-        selection_plot.background_fill = "#333333"
-        selection_plot.border_fill = "#191919"
+        selection_plot.background_fill_color = "#333333"
+        selection_plot.border_fill_color = "#191919"
         selection_plot.yaxis.major_label_text_color = "#191919"
         selection_plot.yaxis.minor_tick_line_color="#191919"
         selection_plot.yaxis.major_tick_line_color=None
@@ -65,12 +63,12 @@ def style_main_plot(p, theme='default'):
     style_axis(p, theme)
 
     if theme == 'default':
-        p.background_fill = "white"
-        p.border_fill = "white"
+        p.background_fill_color = "white"
+        p.border_fill_color = "white"
 
     elif theme == 'dark':
-        p.background_fill = "#333333"
-        p.border_fill = "#191919"
+        p.background_fill_color = "#333333"
+        p.border_fill_color = "#191919"
         p.grid.grid_line_color = "#4D4D4D"
 
 
